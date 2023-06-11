@@ -258,7 +258,7 @@ def apiRoutes(endpoints):
                     df4['y'] = df2['y']
 
                 df5 = prophet_(df4,count)
-                df5.to_csv(rf"C:\Users\suresh kumar m\Desktop\Model Output\predicted_csv{randint(1,1000)}.csv")
+                # df5.to_csv(rf"C:\Users\suresh kumar m\Desktop\Model Output\predicted_csv{randint(1,1000)}.csv")
                 
                 if(count>14):
                     data['weekly_f'] = 1
