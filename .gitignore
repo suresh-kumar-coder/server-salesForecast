@@ -1,0 +1,6 @@
+__pycache__
+.ipynb_checkpoints
+forecast.ipynb 
+shop_sales.csv 
+smtp.py
+train.csv
