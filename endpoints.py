@@ -10,13 +10,8 @@ import pandas as pd
 from pandas.errors import ParserError
 from dateutil import parser
 from prophet import Prophet
-import seaborn as sns
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import math 
 from sklearn.metrics import mean_absolute_error as MAE, mean_squared_error as MSE, mean_absolute_percentage_error as MAPE
-import plotly.graph_objs as pg
 import holidays
 
 
@@ -348,24 +343,24 @@ def prophet_(data, count):
     forecast = model.predict(f)
     return forecast
 
-def graph1(actual, pred):
-    actual['ds'] = pd.to_datetime(actual['ds'])
-    pred['ds'] = pd.to_datetime(pred['ds'])
-    actual['ds'] = actual['ds'].dt.tz_localize(None)
-    pred['ds'] = pred['ds'].dt.tz_localize(None)
-    fig, ax = plt.subplots()
-    fig.patch.set_alpha(0)
-    sns.lineplot(x=actual['ds'][len(actual)//2:],y=actual['y'][len(actual)//2:], label="actual")
-    sns.lineplot(x=pred['ds'][len(actual):],y=pred['yhat'][len(actual):], label="Prediction")
-    plt.xlabel('Time')
-    plt.ylabel('Sales')
-    plt.title('Sales Forecast')
-    ax.patch.set_alpha(0)
-    random_int = randint(1000,100000)
-    img_url = rf"C:\Users\suresh kumar m\Desktop\salesForecast\src\assets\Forecast_{random_int}.png"
-    plt.savefig(img_url)
-    plt.close()
-    return random_int
+# def graph1(actual, pred):
+#     actual['ds'] = pd.to_datetime(actual['ds'])
+#     pred['ds'] = pd.to_datetime(pred['ds'])
+#     actual['ds'] = actual['ds'].dt.tz_localize(None)
+#     pred['ds'] = pred['ds'].dt.tz_localize(None)
+#     fig, ax = plt.subplots()
+#     fig.patch.set_alpha(0)
+#     sns.lineplot(x=actual['ds'][len(actual)//2:],y=actual['y'][len(actual)//2:], label="actual")
+#     sns.lineplot(x=pred['ds'][len(actual):],y=pred['yhat'][len(actual):], label="Prediction")
+#     plt.xlabel('Time')
+#     plt.ylabel('Sales')
+#     plt.title('Sales Forecast')
+#     ax.patch.set_alpha(0)
+#     random_int = randint(1000,100000)
+#     img_url = rf"C:\Users\suresh kumar m\Desktop\salesForecast\src\assets\Forecast_{random_int}.png"
+#     plt.savefig(img_url)
+#     plt.close()
+#     return random_int
 
 def frequency(df):
     diff = []
