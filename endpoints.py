@@ -438,7 +438,7 @@ Hello {user},
 def Insight(df,count,wm):
     df1 = pd.DataFrame()
     df.set_index(df['ds'],inplace=True)
-    df1 = df.resample(wm).mean(numeric_only=True)
+    df1 = df.resample(wm).mean()
     df1.reset_index(drop=True, inplace=True)
     df1['e'] = None
     df1['e'] = ((df1['yhat'] - df1['yhat'].shift(1)) / df1['yhat'].shift(1)) * 100
