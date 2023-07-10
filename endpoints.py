@@ -35,7 +35,8 @@ def apiRoutes(endpoints):
         data = {}
         
         try:
-            email = request.args.get('mail')
+            email = request.json.get('mail')
+            print(email)
 
             if user_collection.find_one({'mail': email}):
                 status = {
@@ -45,10 +46,10 @@ def apiRoutes(endpoints):
                 
             else:
                 data["_id"] = str(ObjectId())
-                data['username'] = request.args.get('user')
-                data['password'] = request.args.get('pass')
+                data['username'] = request.json.get('user')
+                data['password'] = request.json.get('pass')
                 data['mail'] = email
-
+                print(data['username'],data['password'])
                 user_collection.insert_one(data)
 
                 status = {
@@ -67,15 +68,13 @@ def apiRoutes(endpoints):
         resp['status'] = status
         return resp
         
-    @endpoints.route("/auth",methods=['GET'])
+    @endpoints.route("/auth",methods=['POST'])
     def authentication():
         response = {}
-        email = request.args.get('mail')
-        password = request.args.get('pass')
+        email = request.json.get('mail')
+        password = request.json.get('pass')
 
         userData = user_collection.find_one({'mail': email})
-
-        print(userData)
 
         if userData and userData['password'] == password:
             response['data'] = {
