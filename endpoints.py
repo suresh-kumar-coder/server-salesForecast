@@ -12,7 +12,7 @@ from dateutil import parser
 from prophet import Prophet
 import math 
 from sklearn.metrics import mean_absolute_error as MAE, mean_squared_error as MSE, mean_absolute_percentage_error as MAPE
-import holidays
+from secrets import token_hex
 
 
 
@@ -25,6 +25,7 @@ db = client.get_database('userdatabase')
 user_collection = db['user']
 auth_collection = db['auth']
 forecast_collection = db['forecast']
+token_collection = db['token']
 
 def apiRoutes(endpoints):
 
@@ -49,15 +50,21 @@ def apiRoutes(endpoints):
                 data['username'] = request.json.get('user')
                 data['password'] = request.json.get('pass')
                 data['mail'] = email
-                print(data['username'],data['password'])
                 user_collection.insert_one(data)
-
-                status = {
-                    "statusCode" : '200',
-                    "statusMessage" : "User data successfully stored!"
-                }
-                sendMail(email, request.args.get('user'),0)
-                resp['data'] = data
+                
+                if user_collection.find_one({'mail': email}):
+                    status = {
+                        "statusCode" : '200',
+                        "statusMessage" : "User data successfully stored!"
+                    }
+                    sendMail(email, request.args.get('user'),0)
+                    resp['data'] = data
+                else:
+                    status = {
+                        "statusCode" : '500',
+                        "statusMessage" : "Either server or database issue. Please Try Again!!!"
+                    }
+                
                         
         except Exception as e:
             status = {
@@ -102,7 +109,7 @@ def apiRoutes(endpoints):
         response['status'] = status
         return response
     
-    @endpoints.route("/forgot",methods=['GET'])
+    @endpoints.route("/forgotpassword",methods=['GET'])
     def forgot():
         resp = {}
         mail = request.args.get("mail")
@@ -140,34 +147,41 @@ def apiRoutes(endpoints):
                 server.login(sender, pswd)
                 server.send_message(msg)
                 server.quit()
-                print("Success")
-                user_collection.create_index('expireAt', expireAfterSeconds=120)
-
-                data = {"_id" : str(ObjectId()),
-                        'mail': mail,
-                        'otp': otp, 
-                       'expireAt': dt.datetime.utcnow() + dt.timedelta(minutes=2)}
-                auth_collection.insert_one(data)
+                auth_collection.create_index('expireAt', expireAfterSeconds=0)
+                if auth_collection.find_one({'mail': mail}):
+                    auth_collection.update_one(
+                        {'mail': mail}, 
+                        {'$set': 
+                            {'otp': otp, 
+                             'expireAt': dt.datetime.utcnow() + dt.timedelta(minutes=2)}
+                            })
+                else:
+                    data = {"_id" : str(ObjectId()),
+                            'mail': mail,
+                            'otp': otp, 
+                            'expireAt': dt.datetime.utcnow() + dt.timedelta(minutes=2)
+                        }
+                    auth_collection.insert_one(data)
                 status = {
-                    "statusCode" : '1',
+                    "statusCode" : 'OSS',
                     "statusMsg": "otp sent successfully!"
                 }
 
             except Exception as e:
-                print(e)
                 status = {
-                "statusMsg": e
+                    "statusCode" : '500',
+                    "statusMsg": "server error. Try Again!!!"
                 }
         
         else:
             status = {
-                'statusCode': '0',
+                'statusCode': 'UNF',
                 "statusMsg": "User not Found!"
             }
         resp['status'] = status
         return resp
     
-    @endpoints.route('/otpv', methods=['GET'])
+    @endpoints.route('/otpverify', methods=['GET',"POST"])
     def otpv():
         resp = {}
         
@@ -177,16 +191,64 @@ def apiRoutes(endpoints):
         try:
             data = auth_collection.find_one({'mail': mail})
             if data['otp'] == int(otp):
-               resp['status'] = { 'statusCode' : '1', 
-               'statusMsg' : 'OTP Matched'}
+                resp['status'] = { 
+                'statusCode' : 'OM', 
+                'statusMsg' : 'OTP Matched'
+                }
+                token = token_hex(16)
+                sendMail(mail,'user',2,token, request.json.get('url'))
+                token_collection.create_index('expireAt', expireAfterSeconds=0)
+                token_collection.insert_one(
+                    {
+                        'token': token,
+                        'mail': mail,
+                        'expireAt': dt.datetime.utcnow() + dt.timedelta(hours=1)
+                    }
+                )
             else:
-                resp['status'] = { 'statusCode' : '0', 
+                resp['status'] = { 'statusCode' : 'ONM', 
                'statusMsg' : 'OTP not Matched'}
         except Exception as e:
-            resp['status'] = { 'statusCode' : '0', 
-               'statusMsg' : e}
+            resp['status'] = { 'statusCode' : 'OE', 
+               'statusMsg' : "OTP expired!!!",
+               'e': str(e)}
             
         return resp
+    
+    @endpoints.route('/verifytoken', methods=['GET'])
+    def verifyToken():
+        token = request.args.get('token')
+        if token_collection.find_one(
+            {
+                "token": token
+            }):
+            return { 'status': 1}
+        return {'status': 0}
+    
+    @endpoints.route('/resetpassword', methods=['POST', "GET"])
+    def resetPassword():
+        resp = {}
+        try:
+            data = token_collection.find_one(
+                {
+                    'token': request.json.get('token')
+                }
+            )
+            if data:
+                user_collection.find_one({'mail': data['mail']})
+                user_collection.update_one({'mail': data['mail']},
+                                           {'$set' : {
+                                               'password': request.json.get('password')
+                                           }})
+                resp['status'] = 1
+            else:
+                resp['status'] = 2
+                
+        except Exception as e:
+            resp['status'] = 0
+            
+        return resp
+        
     
     @endpoints.route('/uploaddata', methods=['POST'])
     def uploaddata():
@@ -390,7 +452,7 @@ def dailyInsight(df, n):
     df1['e'] = df1['e'].round(2)
     return df1
 
-def sendMail(mail,user, news):
+def sendMail(mail,user, news, token=0, url=None):
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
     sender = "salesforecastapp@gmail.com"
@@ -398,7 +460,7 @@ def sendMail(mail,user, news):
     msg = EmailMessage()
     msg['From'] = sender
     msg['To'] = mail
-    if(news):
+    if news == 1:
         msg['Subject'] = "Thank You for Subscribing to Our Newsletter!"
         msg.set_content(f"""
 Thank you for subscribing to our newsletter! We are delighted to have you as part of our community, and we look forward to sharing valuable insights, updates, and special offers with you.
@@ -406,7 +468,7 @@ Thank you for subscribing to our newsletter! We are delighted to have you as par
 Regards,
 Sales Forecast App.
 """)
-    else:
+    elif news == 0:
         msg['Subject'] = "Welcome to Sales Forecast App - Registration Successful"
         msg.set_content(f"""    
 Hello {user},
@@ -425,6 +487,30 @@ Hello {user},
     Sales Forecast App.
 
     """)
+    else:
+        msg['Subject'] = "Password Reset."
+        msg.set_content(f"""    
+Hi,
+    
+We received a request to reset your password for your account. If you did not request this, please disregard this email.
+
+To reset your password, click on the following link:
+
+{url.split('forgot-password')[0]}resetpassword?token={token}
+
+This link will expire in 1 hour.
+
+If you are unable to click on the link, you can also copy and paste it into your browser.
+
+Once you have clicked on the link, you will be taken to a page where you can enter a new password. Please make sure your new password is strong and secure.
+
+If you have any questions, please do not hesitate to contact us.\n
+
+Regards,
+Sales Forecast App.
+
+    """)
+        
     try: 
         server.login(sender, pswd)
         server.send_message(msg)
